@@ -314,7 +314,13 @@ function hud(){const tm=$('nTeam');if(save.team){tm.hidden=false;tm.textContent=
 hud();
 const veil=$('veil'),card=$('card');
 function show(html){veil.hidden=false;open=true;$('prompt').hidden=true;card.innerHTML=html;card.scrollTop=0}
-function closeAll(){if(!save.team)return;veil.hidden=true;open=false}
+function isTurnComplete(){return Object.keys(save.done).length===N}
+function closeAll(){if(!save.team||isTurnComplete())return;veil.hidden=true;open=false}
+function showFinalScreen(){
+  const total=Object.values(save.done).reduce((sum,points)=>sum+points,0);
+  show('<div class="tag">Turno encerrado</div><h2>Todas as máquinas voltaram a funcionar</h2><p><b>Dupla: '+esc(save.team)+'</b></p><div class="score">'+total+' / '+N*150+' pts</div><p>Você diagnosticou '+N+' defeitos de hardware, da memória RAM à fonte de energia.</p><div class="fb">As resoluções serão enviadas ao professor <b>janielgomes9@gmail.com</b>. Se o envio automático não estiver disponível, baixe o CSV e encaminhe-o manualmente. Para jogar novamente, reinicie o turno; isso apagará o progresso e as respostas salvas.</div><div class="err" id="sendStatus" role="status" aria-live="polite"></div><div class="row"><button class="cta" id="send">Enviar ao professor</button><button class="btn" id="download">Baixar CSV</button><button class="btn" id="rs">Reiniciar turno</button></div>');
+  $('send').onclick=sendReport;$('download').onclick=exportReport;$('rs').onclick=reset
+}
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 veil.addEventListener('pointerdown',e=>{if(e.target===veil)closeAll()});
 function interact(){if(near&&!open)openCase(near.i)}
@@ -381,10 +387,8 @@ function openCase(i){
   function finish(){
     record().completed=true;record().score=sc.v;
     const prev=save.done[i];if(prev===undefined||sc.v>prev)save.done[i]=sc.v;persist();paint();hud();
-    const all=Object.keys(save.done).length===N;
-    if(all){const tot=Object.values(save.done).reduce((a,b)=>a+b,0);
-      show('<div class="tag">Turno encerrado</div><h2>Todas as máquinas voltaram a funcionar</h2><p><b>Dupla: '+esc(save.team)+'</b></p><div class="score">'+tot+' / '+N*150+' pts</div><p>Você diagnosticou '+N+' defeitos de hardware, da memória RAM à fonte de energia.</p><div class="fb">As resoluções serão enviadas ao professor <b>janielgomes9@gmail.com</b>. Se o envio automático não estiver disponível, baixe o CSV e encaminhe-o manualmente.</div><div class="err" id="sendStatus" role="status" aria-live="polite"></div><div class="row"><button class="cta" id="send">Enviar ao professor</button><button class="btn" id="download">Baixar CSV</button><button class="btn" id="rs">Reiniciar turno</button><button class="btn" id="x">Continuar</button></div>');
-      $('send').onclick=sendReport;$('download').onclick=exportReport;$('rs').onclick=reset;$('x').onclick=closeAll}
+    const all=isTurnComplete();
+    if(all)showFinalScreen();
     else{show('<div class="tag">Caso concluído</div><h2>PC '+String(i+1).padStart(2,'0')+' funcionando</h2><div class="score">+'+save.done[i]+' pts</div><div class="row"><button class="cta" id="x">Voltar ao laboratório</button></div>');$('x').onclick=closeAll}}
   diag()}
 
@@ -455,7 +459,7 @@ $('bList').onclick=()=>{
 function help(){show('<div class="tag">Bem-vindo ao seu primeiro turno</div><h2>Um sintoma. Várias causas.</h2><p>Você cuida do laboratório de informática. Cada um dos 12 computadores tem um defeito diferente. Ande até o círculo amarelo, inspecione e use os testes para reunir evidências.</p><p>Antes de ver as alternativas, conversem e registrem uma hipótese. Depois, expliquem a escolha, respondam ao desafio conceitual e façam uma reflexão final sobre as pistas e os testes. Há duas dicas graduais por caso.</p><p>Cada caso vale até 150 pontos. Os dois primeiros testes são grátis e os seguintes custam 5 pontos. Cada erro custa 20. O progresso e as respostas ficam salvos neste navegador. Em <b>Missões</b>, acompanhem habilidades, revisem as respostas e exportem um CSV para o professor.</p><div class="row"><button class="cta" id="x">Começar o turno</button></div>');$('x').onclick=closeAll}
 $('bHelp').onclick=help;
 $('prompt').onclick=interact;
-if(!save.team)teamScreen();else if(!Object.keys(save.done).length)help();
+if(!save.team)teamScreen();else if(isTurnComplete())showFinalScreen();else if(!Object.keys(save.done).length)help();
 })();
 </script>
 

@@ -7,6 +7,7 @@ Jogo 3D educativo: a dupla percorre um laboratório e conserta 12 computadores c
 - Cada caso oferece duas dicas graduais, feedback para respostas incorretas e um desafio conceitual.
 - Ao concluir o caso, a dupla reflete sobre a pista decisiva e qual teste faria primeiro em um computador real.
 - Ao concluir o último caso, a dupla pode baixar um CSV com as hipóteses, testes, reparos, respostas conceituais e reflexões para enviar ao professor. O relatório também pode ser exportado em **Missões**.
+- Depois de concluir os 12 casos, a tela de envio/baixar permanece aberta mesmo após atualizar a página. Para jogar novamente, é necessário escolher **Reiniciar turno**, que apaga o progresso e as respostas salvas naquele navegador.
 - O progresso e as respostas são armazenados no navegador usado para jogar. Exporte o relatório antes de trocar de dispositivo ou limpar os dados do navegador.
 
 ## Publicar na Vercel
