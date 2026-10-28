@@ -319,7 +319,7 @@ function closeAll(){if(!save.team||isTurnComplete())return;veil.hidden=true;open
 function showFinalScreen(){
   const total=Object.values(save.done).reduce((sum,points)=>sum+points,0);
   show('<div class="tag">Turno encerrado</div><h2>Todas as máquinas voltaram a funcionar</h2><p><b>Dupla: '+esc(save.team)+'</b></p><div class="score">'+total+' / '+N*150+' pts</div><p>Você diagnosticou '+N+' defeitos de hardware, da memória RAM à fonte de energia.</p><div class="fb">As resoluções serão enviadas ao professor <b>janielgomes9@gmail.com</b>. Se o envio automático não estiver disponível, baixe o CSV e encaminhe-o manualmente. Para jogar novamente, reinicie o turno; isso apagará o progresso e as respostas salvas.</div><div class="err" id="sendStatus" role="status" aria-live="polite"></div><div class="row"><button class="cta" id="send">Enviar ao professor</button><button class="btn" id="download">Baixar CSV</button><button class="btn" id="rs">Reiniciar turno</button></div>');
-  $('send').onclick=sendReport;$('download').onclick=exportReport;$('rs').onclick=reset
+  $('send').onclick=()=>sendReport();$('download').onclick=exportReport;$('rs').onclick=reset
 }
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 veil.addEventListener('pointerdown',e=>{if(e.target===veil)closeAll()});
@@ -433,6 +433,8 @@ async function sendReport(buttonId='send',statusId='sendStatus'){
   button.disabled=true;status.textContent='Enviando relatório...';
   try{
     const response=await fetch('/api/send-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:reportCsv()})});
+    const contentType=response.headers.get('content-type')||'';
+    if(!contentType.includes('application/json'))throw new Error('O servidor respondeu de forma inesperada (HTTP '+response.status+').');
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'Falha ao enviar o relatório.');
     status.textContent='Relatório enviado para janielgomes9@gmail.com.';
