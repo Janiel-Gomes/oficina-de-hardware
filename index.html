@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Oficina de Hardware</title>
+<meta name="description" content="Jogo 3D educativo: conserte 12 computadores com defeitos de hardware.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="three.min.js"></script>
+<style>
+html{color-scheme:dark}body{margin:0}[hidden]{display:none!important}
+/* Layout: cena 3D em tela cheia, HUD flutuante em cima, painel de atendimento sobre a cena. */
+:root{
+  --bg:#0b1722; --panel:#12273a; --panel2:#183450; --line:#2a4b69;
+  --fg:#e8f1f8; --mute:#8fb0c8; --cable:#ffb703; --ok:#3ddc97; --bad:#ff6b6b;
+  --display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+:root{padding-block:0}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--cable);outline-offset:2px}
+.hud{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;pointer-events:none}
+.hud>*{pointer-events:auto}
+.brand{background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:6px}
+.brand b{display:block;font:800 20px/1.05 var(--display);letter-spacing:-.01em}
+.brand span{font:500 11px var(--mono);color:var(--cable);letter-spacing:.12em;text-transform:uppercase}
+.stats{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);padding:8px 10px 8px 14px;border-radius:6px;font-variant-numeric:tabular-nums}
+.stats .n{font:500 14px var(--mono)}
+.stats .n em{font-style:normal;color:var(--cable)}
+.team{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}
+.team b{color:var(--fg);font-weight:500}
+.field{display:grid;gap:6px;margin-top:14px}
+.field input{font:500 17px var(--body);background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;width:100%;min-width:0}
+.field input:focus-visible{outline:2px solid var(--cable);outline-offset:1px}
+.err{color:var(--bad);font-size:13px;min-height:18px}
+.btn{background:var(--panel2);border:1px solid var(--line);padding:6px 12px;border-radius:5px;font-weight:600;font-size:13px}
+.btn:hover{border-color:var(--cable)}
+.prompt{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--cable);color:#201500;font-weight:600;padding:8px 16px;border-radius:999px;border:0;box-shadow:0 6px 20px #0008;max-width:calc(100% - 32px);text-align:center}
+.help{position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom,0px));text-align:center;font:500 12px var(--mono);color:var(--mute);padding:0 16px;pointer-events:none}
+.help kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--fg)}
+.pad{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));display:none;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,52px);gap:6px}
+.pad button{background:#12273acc;border:1px solid var(--line);border-radius:8px;font-size:20px;touch-action:none;user-select:none}
+.act{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));display:none;width:70px;height:70px;border-radius:50%;background:var(--cable);color:#201500;font:800 22px var(--display);border:0}
+@media (pointer:coarse){.pad,.act{display:grid;place-items:center}.help{display:none}.prompt{bottom:calc(130px + env(safe-area-inset-bottom,0px))}}
+.veil{position:fixed;inset:0;background:#050c13c9;display:grid;place-items:center;padding:16px;overflow:auto}
+.veil[hidden]{display:none}
+.card{width:min(640px,100%);max-height:calc(100% - 8px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--cable);border-radius:8px;padding:20px 22px;min-width:0}
+.card h2{font:800 26px/1.1 var(--display);margin:2px 0 6px;text-wrap:balance}
+.tag{font:500 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cable)}
+.sym{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin:12px 0;color:var(--fg)}
+.tests{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.tests button{background:var(--panel2);border:1px dashed var(--line);border-radius:5px;padding:5px 10px;font-size:13px}
+.tests button.on{border:1px solid var(--cable)}
+.log{font:500 13px/1.5 var(--mono);color:var(--mute);display:grid;gap:4px;margin:6px 0 12px;min-height:22px}
+.log div b{color:var(--cable);font-weight:500}
+.opts{display:grid;gap:8px;margin-top:6px}
+.opt{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.opt:hover{border-color:var(--cable)}
+.reason{display:grid;gap:6px;margin-top:14px}
+.reason textarea{font:400 14px/1.5 var(--body);background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;width:100%;min-height:84px;resize:vertical;box-sizing:border-box}
+.reason textarea:focus-visible{outline:2px solid var(--cable);outline-offset:1px}
+.hintbox,.classroom{margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:6px}
+.hintbox p,.classroom p{margin:6px 0}
+.classroom textarea{font:400 14px/1.5 var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;width:100%;min-height:72px;resize:vertical;box-sizing:border-box}
+.classroom textarea:focus-visible{outline:2px solid var(--cable);outline-offset:1px}
+.skill-list{display:grid;gap:8px;margin:12px 0}
+.skill{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+.skill-head{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.skill small{color:var(--mute)}
+.meter{height:6px;background:var(--panel2);border-radius:99px;margin-top:6px;overflow:hidden}
+.meter i{height:100%;display:block;background:var(--ok)}
+.report-entry{background:var(--bg);border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:9px 10px}
+.report-entry summary{cursor:pointer;font-weight:600}
+.report-entry p{margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.unlock{margin-top:10px}
+.opt.bad{border-color:var(--bad);background:#3a1d26}
+.opt.good{border-color:var(--ok);background:#12382e}
+.fb{margin-top:12px;padding:10px 12px;border-radius:6px;background:var(--bg);border-left:4px solid var(--ok)}
+.fb.bad{border-left-color:var(--bad)}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.cta{background:var(--cable);color:#201500;border:0;border-radius:6px;padding:9px 16px;font-weight:600}
+.list{display:grid;gap:6px;margin-top:10px}
+.list div{display:flex;gap:10px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.list i{font:500 12px var(--mono);color:var(--mute);font-style:normal;min-width:26px}
+.list s{text-decoration:none;margin-left:auto;font:500 12px var(--mono);color:var(--mute);white-space:nowrap}
+.list .d s{color:var(--ok)}
+.score{font:800 44px var(--display);color:var(--cable)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+</head>
+<body>
+<canvas id="c" aria-label="Oficina de hardware em 3D"></canvas>
+
+<div class="hud">
+  <div class="brand"><span>Aprender na prática</span><b>Oficina de Hardware</b></div>
+  <div class="stats">
+    <div class="n team" id="nTeam" hidden></div>
+    <div class="n"><em id="nDone">0</em> / 12 reparos</div>
+    <div class="n"><em id="nPts">0</em> pts</div>
+    <button class="btn" id="bList">Missões</button>
+    <button class="btn" id="bHelp">?</button>
+  </div>
+</div>
+<button class="prompt" id="prompt" hidden></button>
+<div class="help"><kbd>WASD</kbd> / setas andar · <kbd>Q</kbd> <kbd>R</kbd> girar câmera · <kbd>E</kbd> inspecionar · <kbd>Esc</kbd> fechar</div>
+<div class="pad" id="pad"><span></span><button data-k="w">▲</button><span></span><button data-k="a">◀</button><button data-k="s">▼</button><button data-k="d">▶</button></div>
+<button class="act" id="act">E</button>
+
+<div class="veil" id="veil" hidden><div class="card" id="card" role="dialog" aria-modal="true"></div></div>
+
+<script>
+(function(){
+const CASES=[
+{n:'Silêncio na partida',sym:'Nenhuma luz, ventoinha ou som ao apertar o botão. O usuário já testou outra tomada e outro cabo de força.',
+ tests:[['Medir a tomada','220 V, normal.'],['Ver a chave traseira da fonte','Está na posição ligada (I).'],['Olhar o LED da placa-mãe','Aceso fraco: a energia de standby chega à placa.'],['Fazer contato nos pinos PWR_SW da placa','O PC liga normalmente.'],['Testar outro cabo de força','Mesmo resultado.']],
+ opts:['Substituir o botão ou o cabo do painel frontal','Trocar a fonte de alimentação','Substituir a memória RAM','Trocar a placa-mãe'],ok:0,
+ why:'Com standby presente, a fonte e a placa estão vivas. Como o contato direto nos pinos liga o PC, o defeito está no botão ou no cabo do painel.',
+ q:'Qual linha da fonte alimenta a placa-mãe mesmo com o PC desligado?',qo:['+5 VSB (standby)','+12 V','-12 V','+3,3 V do disco'],qok:0,qw:'A linha +5 VSB mantém a placa pronta para ser ligada pelo botão ou pela rede.'},
+{n:'Liga, mas não exibe',sym:'Ventoinhas giram e o teclado acende, mas o monitor mostra "sem sinal". O monitor funciona em outro PC.',
+ tests:[['Trocar o cabo de vídeo','Mesmo resultado.'],['Ver onde o cabo está ligado','Na saída da placa-mãe. Há uma placa de vídeo dedicada instalada.'],['Mudar a RAM de slot','Nenhuma mudança e nenhum bipe.'],['Medir a bateria da BIOS','3,0 V, normal.'],['Ver a energia da placa de vídeo','O cabo auxiliar está ligado e as ventoinhas dela giram.']],
+ opts:['Ligar o cabo de vídeo na saída da placa de vídeo','Limpar a CMOS com o jumper','Trocar o módulo de RAM','Substituir o monitor'],ok:0,
+ why:'Com placa dedicada, a saída de vídeo da placa-mãe costuma ficar inativa. O resto do hardware está funcionando.',
+ q:'Qual destes padrões de vídeo é analógico?',qo:['VGA','HDMI','DisplayPort','USB-C com DP Alt Mode'],qok:0,qw:'O VGA transmite sinal analógico. HDMI, DisplayPort e DP Alt Mode são digitais.'},
+{n:'Bipes depois do upgrade',sym:'Depois de adicionar um segundo pente de RAM, o PC dá bipes curtos e a tela fica preta.',
+ tests:[['Ouvir o padrão de bipes','Erro de memória.'],['Testar o pente antigo sozinho','Liga e funciona.'],['Testar o pente novo sozinho','Liga e funciona.'],['Ver as especificações','Os dois são DDR4, mas de velocidades diferentes: 2133 e 3200 MHz.'],['Ver o perfil na BIOS (antes da falha)','O XMP está ativado em 3200 MHz.']],
+ opts:['Limpar a CMOS, desativar o XMP e usar uma frequência compatível com os dois pentes','Trocar a fonte','Substituir o processador','Reinstalar o sistema operacional'],ok:0,
+ why:'Cada pente funciona sozinho, então não há RAM defeituosa. O XMP em 3200 MHz força o pente de 2133 a uma velocidade que ele não aguenta.',
+ q:'O que é o perfil XMP da memória RAM?',qo:['Um perfil de fábrica com frequência e timings acima do padrão','Um tipo de cabo para memória','Uma proteção contra vírus','Um modo de economia de energia'],qok:0,qw:'O XMP é um conjunto de configurações que o fabricante testou para a memória rodar acima do padrão JEDEC.'},
+{n:'Desliga sob pressão',sym:'O PC desliga após 5 minutos de jogo, sem aviso. O gabinete e o cooler foram limpos há uma semana.',
+ tests:[['Temperatura da CPU em carga','62 °C, estável.'],['Temperatura da GPU em carga','70 °C, estável.'],['Tensões da fonte em carga','A linha de 12 V cai para 10,8 V.'],['Log de eventos do Windows','Kernel-Power 41: desligamento sem aviso.'],['Ver poeira no gabinete','Limpo.']],
+ opts:['Substituir a fonte de alimentação','Trocar a pasta térmica da CPU','Trocar o cooler por um maior','Reinstalar os drivers de vídeo'],ok:0,
+ why:'As temperaturas estão boas e o sistema desliga sem aviso. A queda de 12 V para 10,8 V sob carga mostra uma fonte degradada.',
+ q:'O que a certificação 80 Plus indica sobre uma fonte?',qo:['Eficiência na conversão de energia','Potência máxima em watts','Número de conectores','Nível de ruído'],qok:0,qw:'80 Plus indica que a fonte converte pelo menos 80% da energia da tomada em energia útil, com níveis como Bronze, Gold e Platinum.'},
+{n:'Arquivos em risco',sym:'O PC demora minutos para abrir programas e às vezes congela. O disco é um HD de 4 anos.',
+ tests:[['Ler o S.M.A.R.T.','48 setores pendentes e 312 realocados.'],['Rodar teste de memória','Sem erros.'],['Passar um antivírus','Nenhuma ameaça.'],['Ver a temperatura do HD','41 °C, normal.'],['Ouvir o disco','Cliques ocasionais.']],
+ opts:['Fazer backup imediatamente e substituir o HD','Desfragmentar o disco','Reinstalar o sistema operacional','Adicionar mais memória RAM'],ok:0,
+ why:'Muitos setores pendentes e realocados indicam desgaste físico da superfície. Primeiro se protegem os dados, depois se troca o disco.',
+ q:'Qual conexão entrega mais velocidade a um SSD?',qo:['NVMe em slot PCIe (M.2)','SATA III','USB 2.0','IDE'],qok:0,qw:'O NVMe usa o barramento PCIe e supera bastante os cerca de 600 MB/s do SATA III.'},
+{n:'Relógio sempre errado',sym:'Quando o PC fica desligado à noite, a data volta para o ano 2000. O Windows pede a hora todo dia.',
+ tests:[['Medir a bateria da placa','2,1 V. O normal é cerca de 3 V.'],['Acertar a hora na BIOS','Mantém enquanto o PC está ligado.'],['Medir as tensões da fonte','Tudo normal.'],['Verificar a sincronização pela internet','O servidor de hora responde.'],['Ver a saúde do SSD','100%.']],
+ opts:['Trocar a pilha CR2032 da placa-mãe','Trocar a fonte de alimentação','Atualizar o Windows','Substituir o SSD'],ok:0,
+ why:'O relógio da BIOS depende da pilha quando o PC está desligado. A tensão em 2,1 V é insuficiente para mantê-lo.',
+ q:'O que a pilha da placa-mãe mantém quando o PC está desligado?',qo:['O relógio e as configurações da BIOS','Os arquivos do usuário','O sistema operacional','A memória RAM'],qok:0,qw:'A pilha alimenta o relógio em tempo real (RTC) e a memória CMOS com as configurações.'},
+{n:'USB da frente não funciona',sym:'O pen drive funciona atrás, mas na frente nem o teclado acende.',
+ tests:[['Usar outro dispositivo na frente','Mesmo resultado.'],['Testar as portas traseiras','Funcionam.'],['Ver o cabo no gabinete','O conector do painel está encaixado, mas deslocado um pino no header USB.'],['Ver o BIOS','Todas as portas USB estão habilitadas.'],['Medir 5 V na porta da frente','0 V.']],
+ opts:['Reposicionar o conector do painel frontal no header USB correto','Trocar o pen drive','Atualizar a BIOS','Trocar a fonte'],ok:0,
+ why:'As portas traseiras funcionam e a BIOS está correta. O encaixe deslocado leva os 5 V para o pino errado e as portas da frente ficam sem energia.',
+ q:'Qual cor costuma identificar uma porta USB 3.x?',qo:['Azul','Preta','Amarela','Verde'],qok:0,qw:'O azul é o padrão para USB 3.x. As portas amarelas costumam ter carga sempre ativa.'},
+{n:'Imagem com listras',sym:'A tela mostra listras coloridas e quadradinhos, em jogos e também no menu do Windows.',
+ tests:[['Ver a BIOS','Os artefatos também aparecem lá.'],['Testar o monitor em outro PC','Imagem perfeita.'],['Trocar o cabo de vídeo','Mesmo resultado.'],['Ver a temperatura da GPU parada','48 °C.'],['Teste de estresse de GPU','Aumentam rápido, com cores aleatórias.']],
+ opts:['Substituir ou reparar a placa de vídeo (memória de vídeo defeituosa)','Reinstalar os drivers','Trocar o monitor','Limpar o cooler da placa de vídeo'],ok:0,
+ why:'Artefatos na BIOS descartam driver e sistema. Monitor e cabo estão bons e a temperatura é normal, então a memória da GPU é o suspeito.',
+ q:'O que é a VRAM?',qo:['A memória dedicada da placa de vídeo','O cache do processador','A memória do SSD','A memória da BIOS'],qok:0,qw:'A VRAM guarda texturas e quadros que a GPU usa para montar a imagem.'},
+{n:'Sistema não encontrado',sym:'Depois de reinstalar o sistema, o PC mostra "Operating system not found". O disco é um SSD NVMe.',
+ tests:[['Ver se a BIOS lista o SSD','Sim, o SSD aparece.'],['Ver o modo de boot','Legacy (CSM). A instalação foi feita em UEFI com disco GPT.'],['Ver a saúde do SSD','100%.'],['Reencaixar o SSD','Mesmo resultado.'],['Ver a ordem de boot','O SSD é o primeiro.']],
+ opts:['Mudar o modo de boot para UEFI','Reencaixar o cabo SATA','Substituir o SSD','Reinstalar a memória RAM'],ok:0,
+ why:'O disco é visto e está saudável, e a ordem está certa. O sistema foi instalado em UEFI com GPT, mas a BIOS tenta iniciar em modo Legacy.',
+ q:'Qual esquema de partição exige UEFI para iniciar o sistema?',qo:['GPT','MBR','FAT32','ext4'],qok:0,qw:'O GPT é usado com UEFI. O MBR é o esquema do modo Legacy.'},
+{n:'Reinicia ao abrir jogos',sym:'Em tarefas leves tudo funciona. Ao abrir um jogo, o PC reinicia sozinho.',
+ tests:[['Temperaturas em carga','CPU e GPU normais.'],['Ver a potência da fonte','550 W, acima dos 450 W recomendados.'],['Ver os cabos da placa de vídeo','Um adaptador Molex para PCIe alimenta a GPU.'],['Ver a RAM','Sem erros no teste.'],['Medir a linha de 12 V do adaptador','Cai muito quando a GPU trabalha.']],
+ opts:['Ligar cabos PCIe dedicados da fonte direto à placa de vídeo','Comprar uma fonte de 1000 W','Trocar a memória RAM','Trocar o processador'],ok:0,
+ why:'A potência total da fonte é suficiente. O adaptador improvisado não aguenta a corrente da GPU, e o certo é o cabo PCIe dedicado.',
+ q:'Como se calcula a potência elétrica?',qo:['Tensão × corrente','Tensão ÷ corrente','Corrente ÷ tensão','Tensão + corrente'],qok:0,qw:'P = V × I. Por isso a linha de 12 V com mais corrente entrega mais watts.'},
+{n:'Temperatura alta parada',sym:'A CPU fica em 85 °C só abrindo o navegador. A ventoinha do cooler gira normalmente.',
+ tests:[['Ver a rotação do cooler','Normal e estável.'],['Tocar no dissipador com o PC desligado','Balança levemente.'],['Ver a pasta térmica','Marcas irregulares, com contato só em um lado.'],['Ver a poeira','Gabinete limpo.'],['Ver a tensão da CPU','Normal.']],
+ opts:['Refixar o dissipador com pressão uniforme e reaplicar a pasta térmica','Trocar a ventoinha','Trocar a fonte','Atualizar a BIOS'],ok:0,
+ why:'A ventoinha e a poeira estão em ordem. O dissipador solto e o contato irregular da pasta impedem a transferência de calor.',
+ q:'Para que servem os heatpipes de um dissipador?',qo:['Transportar calor da base para as aletas','Passar o líquido de refrigeração','Conduzir energia elétrica','Reduzir o ruído'],qok:0,qw:'Os heatpipes contêm um fluido que evapora e condensa e levam o calor para as aletas.'},
+{n:'Placa de vídeo sem sinal',sym:'Uma placa de vídeo nova foi instalada. As ventoinhas dela não giram e só funciona o vídeo da placa-mãe.',
+ tests:[['Ver o encaixe no slot PCIe','Encaixada até o fim e com a trava fechada.'],['Ver a energia auxiliar','O cabo de 8 pinos está solto na placa.'],['Ver a BIOS','Nenhum dispositivo PCIe de vídeo.'],['Testar a placa em outro PC','Não foi possível testar agora.'],['Ver o driver instalado','Driver de vídeo básico.']],
+ opts:['Ligar o cabo de energia auxiliar PCIe na placa','Trocar o slot de RAM','Substituir a placa de vídeo','Atualizar os drivers'],ok:0,
+ why:'O encaixe está correto e a placa não gira as ventoinhas, o que mostra falta de energia. O cabo auxiliar de 8 pinos estava solto.',
+ q:'Qual conector fornece a energia principal à placa-mãe?',qo:['ATX de 24 pinos','SATA de 15 pinos','Molex de 4 pinos','PCIe de 8 pinos'],qok:0,qw:'O conector ATX de 24 pinos leva as tensões principais da fonte para a placa-mãe.'}
+];
+const N=CASES.length, KEY='oficina-de-hardware-v3';
+let save={done:{},records:{}};
+try{
+  const s=JSON.parse(localStorage.getItem(KEY));
+  if(s&&typeof s==='object')save={...s,done:s.done||{},records:s.records||{}}
+}catch(e){console.error('Não foi possível ler o progresso salvo.',e)}
+let storageErrorShown=false;
+const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(save));return true}
+  catch(e){if(!storageErrorShown){console.error('Não foi possível salvar o progresso neste navegador.',e);storageErrorShown=true}return false}};
+const LEARNING=[
+  {topics:['Diagnóstico elétrico','Placa-mãe e conexões'],hints:['O LED de standby indica se a placa recebe energia mesmo desligada.','O teste direto nos pinos PWR_SW ajuda a separar defeito no botão de defeito na placa.'],qHint:'Pense na tensão de standby que permanece disponível com o computador desligado.'},
+  {topics:['Vídeo e GPU','Diagnóstico de vídeo'],hints:['Confirme se o cabo está conectado à saída de vídeo que realmente deve ser usada.','Uma placa de vídeo dedicada pode desativar as saídas de vídeo da placa-mãe.'],qHint:'Lembre que VGA transmite sinal analógico, enquanto as interfaces mais novas são digitais.'},
+  {topics:['Memória RAM','BIOS e configuração'],hints:['Os dois módulos funcionam individualmente; procure uma diferença de configuração.','Compare a frequência do perfil ativo com a frequência suportada pelo módulo mais lento.'],qHint:'O perfil XMP altera frequência e timings da memória.'},
+  {topics:['Fonte e alimentação','Diagnóstico elétrico'],hints:['Temperaturas normais tornam superaquecimento uma explicação menos provável.','Observe a linha de 12 V durante a carga, não apenas em repouso.'],qHint:'A certificação está relacionada ao aproveitamento da energia, não à potência nominal.'},
+  {topics:['Armazenamento','Segurança de dados'],hints:['Setores pendentes e realocados apontam para degradação física do disco.','Cliques junto com alertas S.M.A.R.T. tornam a proteção dos dados urgente.'],qHint:'Compare os barramentos: SATA tem limite menor que uma unidade NVMe ligada a PCIe.'},
+  {topics:['BIOS e configuração','Diagnóstico elétrico'],hints:['A hora permanece correta enquanto o computador está ligado.','A tensão medida na pilha está abaixo do valor esperado para uma CR2032.'],qHint:'Essa pilha mantém informações básicas da placa enquanto o PC está sem energia.'},
+  {topics:['Placa-mãe e conexões','USB e periféricos'],hints:['As portas traseiras funcionam, então o dispositivo e o sistema não são a causa principal.','O painel frontal não recebe 5 V; confira fisicamente a posição do header USB.'],qHint:'A cor azul é uma convenção comum para identificar portas USB de maior velocidade.'},
+  {topics:['Vídeo e GPU','Diagnóstico de vídeo'],hints:['Os artefatos aparecem antes do sistema operacional carregar.','Monitor e cabo foram descartados; a falha aumenta no teste da GPU.'],qHint:'A memória dedicada usada pela placa de vídeo tem um nome próprio.'},
+  {topics:['Armazenamento','BIOS e configuração'],hints:['A BIOS reconhece o SSD e ele está saudável; não há indício de falha física.','Compare o modo de inicialização configurado com o modo usado na instalação.'],qHint:'O esquema GPT é normalmente associado ao modo de inicialização UEFI.'},
+  {topics:['Fonte e alimentação','Vídeo e GPU'],hints:['Temperaturas e potência total da fonte parecem adequadas.','O adaptador improvisado e a queda na linha de 12 V são pistas sobre a alimentação da GPU.'],qHint:'A potência elétrica depende da tensão e da corrente.'},
+  {topics:['Refrigeração','Processador'],hints:['A ventoinha gira e o gabinete está limpo; confira o contato térmico.','O dissipador está solto e a pasta não espalhou de forma uniforme.'],qHint:'Os heatpipes conduzem o calor da base do dissipador até as aletas.'},
+  {topics:['Vídeo e GPU','Fonte e alimentação','Placa-mãe e conexões'],hints:['A placa está encaixada no slot, mas ainda precisa de alimentação própria.','O cabo auxiliar de 8 pinos está solto; confirme a conexão antes de trocar componentes.'],qHint:'O conector ATX principal da placa-mãe é diferente dos conectores PCIe da GPU.'}
+];
+CASES.forEach((c,i)=>Object.assign(c,LEARNING[i]));
+const $=id=>document.getElementById(id);
+
+// ---------- 3D ----------
+const cv=$('c'),R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio||1,2));R.shadowMap.enabled=true;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1722);scene.fog=new THREE.Fog(0x0b1722,22,48);
+const cam=new THREE.PerspectiveCamera(55,1,.1,100);
+scene.add(new THREE.HemisphereLight(0xbfdcff,0x1a2a3a,.95));
+const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(8,16,10);sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-20,right:20,top:16,bottom:-16,near:1,far:50});scene.add(sun);
+const M=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+function box(w,h,d,mat,x,y,z,p){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(p||scene).add(m);return m}
+const RX=14,RZ=11.5;
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(RX*2,RZ*2),M(0x1b3347));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+const grid=new THREE.GridHelper(RX*2,RX*2,0x28465f,0x213c52);grid.position.y=.01;scene.add(grid);
+const wallM=M(0x23405a);
+box(RX*2,1.2,.4,wallM,0,.6,-RZ);box(.4,1.2,RZ*2,wallM,-RX,.6,0);box(.4,1.2,RZ*2,wallM,RX,.6,0);box(RX*2,1.2,.4,wallM,0,.6,RZ);
+// calhas de cabo no chão
+const cableM=M(0xffb703);
+
+const desks=[],stations=[];
+function label(txt){const c=document.createElement('canvas');c.width=256;c.height=96;const g=c.getContext('2d');
+  g.fillStyle='#0b1722';g.fillRect(0,0,256,96);g.strokeStyle='#ffb703';g.lineWidth=6;g.strokeRect(3,3,250,90);
+  g.fillStyle='#e8f1f8';g.font='600 46px monospace';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,128,50);
+  const t=new THREE.CanvasTexture(c);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t}));s.scale.set(1.6,.6,1);return s}
+const deskM=M(0xcfd9e2),legM=M(0x2b3a48),caseM=M(0x1d2630),standM=M(0x2b3a48);
+CASES.forEach((cs,i)=>{
+  const col=i%4,row=Math.floor(i/4),x=(col-1.5)*6.6,z=(row-1)*6.8-.2;
+  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+  box(4.3,.12,1.6,deskM,0,.8,0,g);
+  [[-2,-.65],[2,-.65],[-2,.65],[2,.65]].forEach(p=>box(.1,.8,.1,legM,p[0],.4,p[1],g));
+  box(.12,.4,.12,standM,-.5,1.05,-.3,g);
+  const scr=M(0xff6b6b,{emissive:0x661a1a});
+  box(1.5,.9,.08,caseM,-.5,1.55,-.35,g);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.34,.74),scr);screen.position.set(-.5,1.55,-.305);g.add(screen);
+  box(.55,1.1,1.0,caseM,1.4,1.4,-.1,g);
+  box(.9,.04,.3,M(0x2b3a48),-.5,.88,.35,g);
+  const lb=label('PC '+String(i+1).padStart(2,'0'));lb.position.set(-.5,2.4,-.35);g.add(lb);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.55,.75,40),new THREE.MeshBasicMaterial({color:0xffb703,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2;ring.position.set(x-.5,.03,z+2.3);scene.add(ring);
+  desks.push({x,z,hw:2.15,hd:.8});
+  stations.push({i,x:x-.5,z:z+2.3,scr:screen,ring});
+});
+function paint(){stations.forEach(s=>{const d=save.done[s.i]!==undefined;
+  s.scr.material.color.setHex(d?0x3ddc97:0xff6b6b);s.scr.material.emissive.setHex(d?0x145a3c:0x661a1a);
+  s.ring.material.color.setHex(d?0x3ddc97:0xffb703)})}
+paint();
+
+// jogador
+const P=new THREE.Group();scene.add(P);P.position.set(0,0,9);
+const skin=M(0xe9b88a),shirt=M(0x2f9bd8),pants=M(0x253a52),hair=M(0x3a2a1c);
+const body=box(.7,.8,.4,shirt,0,1.2,0,P),head=box(.5,.5,.5,skin,0,1.85,0,P);box(.54,.16,.54,hair,0,2.12,0,P);
+const legL=box(.28,.8,.3,pants,-.18,.4,0,P),legR=box(.28,.8,.3,pants,.18,.4,0,P);
+const armL=box(.22,.75,.25,skin,-.48,1.2,0,P),armR=box(.22,.75,.25,skin,.48,1.2,0,P);
+let yaw=0,cd=8.5,ch=6.2,face=Math.PI,walk=0;
+
+const keys={};let open=false;
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();
+  if(e.key==='Escape'){closeAll();return}
+  if(open)return;
+  if(k==='e')interact();
+  keys[k]=1;if(e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0});
+addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag=e.clientX;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(drag!==null){yaw-=(e.clientX-drag)*.006;drag=e.clientX}});
+cv.addEventListener('pointerup',()=>{drag=null});
+document.querySelectorAll('#pad button').forEach(b=>{const k=b.dataset.k;
+  const on=e=>{e.preventDefault();keys[k]=1},off=()=>{keys[k]=0};
+  b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointerleave',off);b.addEventListener('pointercancel',off)});
+$('act').addEventListener('click',()=>interact());
+
+function blocked(x,z){
+  if(Math.abs(x)>RX-.7||Math.abs(z)>RZ-.7)return true;
+  for(const d of desks)if(Math.abs(x-d.x)<d.hw+.35&&Math.abs(z-d.z)<d.hd+.35)return true;
+  return false}
+let near=null,last=performance.now();
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+function loop(t){
+  const dt=Math.min(.05,(t-last)/1000);last=t;
+  if(!open){
+    if(keys.q)yaw+=1.8*dt;if(keys.r)yaw-=1.8*dt;
+    let f=0,r=0;
+    if(keys.w||keys.arrowup)f+=1;if(keys.s||keys.arrowdown)f-=1;
+    if(keys.d||keys.arrowright)r+=1;if(keys.a||keys.arrowleft)r-=1;
+    const s=Math.sin(yaw),c=Math.cos(yaw);
+    let dx=(-s*f+c*r),dz=(-c*f-s*r);const l=Math.hypot(dx,dz);
+    if(l>0){dx/=l;dz/=l;const sp=5*dt,nx=P.position.x+dx*sp,nz=P.position.z+dz*sp;
+      if(!blocked(nx,P.position.z))P.position.x=nx;if(!blocked(P.position.x,nz))P.position.z=nz;
+      face=Math.atan2(dx,dz);walk+=dt*10}else walk=0;
+    let da=face-P.rotation.y;da=Math.atan2(Math.sin(da),Math.cos(da));P.rotation.y+=da*Math.min(1,dt*12);
+    const sw=l>0?Math.sin(walk)*.6:0;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw;armR.rotation.x=sw;
+    near=null;let bd=1.9;
+    for(const st of stations){const d=Math.hypot(st.x-P.position.x,st.z-P.position.z);if(d<bd){bd=d;near=st}}
+    const p=$('prompt');
+    if(near){const done=save.done[near.i]!==undefined;p.hidden=false;p.textContent=(done?'Revisar PC ':'Inspecionar PC ')+String(near.i+1).padStart(2,'0')+' · E'}else p.hidden=true;
+  }
+  stations.forEach(st=>{const d=save.done[st.i]!==undefined;st.ring.scale.setScalar(d?1:1+.12*Math.sin(t/260+st.i))});
+  cam.position.set(P.position.x+Math.sin(yaw)*cd,ch,P.position.z+Math.cos(yaw)*cd);
+  cam.lookAt(P.position.x,1.2,P.position.z);
+  R.render(scene,cam);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+
+// ---------- UI ----------
+function hud(){const tm=$('nTeam');if(save.team){tm.hidden=false;tm.textContent='Dupla: '+save.team;tm.title=save.team}else tm.hidden=true;const ids=Object.keys(save.done);$('nDone').textContent=ids.length;
+  $('nPts').textContent=ids.reduce((a,k)=>a+save.done[k],0)}
+hud();
+const veil=$('veil'),card=$('card');
+function show(html){veil.hidden=false;open=true;$('prompt').hidden=true;card.innerHTML=html;card.scrollTop=0}
+function closeAll(){if(!save.team)return;veil.hidden=true;open=false}
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+veil.addEventListener('pointerdown',e=>{if(e.target===veil)closeAll()});
+function interact(){if(near&&!open)openCase(near.i)}
+
+function openCase(i){
+  const c=CASES[i],saved=save.records[i]||{};
+  const sc={v:150,seen:{},hypothesis:saved.hypothesis||'',reason:saved.reason||'',
+    important:saved.important||'',firstTest:saved.firstTest||'',unlocked:!!saved.hypothesis,hints:0};
+  const record=()=>save.records[i]||(save.records[i]={});
+  const saveAnswer=(key,value)=>{record()[key]=value;persist()};
+  const shuf=n=>{const a=[...Array(n).keys()];for(let k=n-1;k>0;k--){const j=Math.floor(Math.random()*(k+1));[a[k],a[j]]=[a[j],a[k]]}return a};
+  const oo=shuf(c.opts.length),qq=shuf(c.qo.length);
+  const tag='<div class="tag">Ficha de atendimento · PC '+String(i+1).padStart(2,'0')+'</div>';
+  function diag(){
+    const logs=Object.keys(sc.seen).map(k=>'<div><b>'+c.tests[k][0]+'</b> → '+c.tests[k][1]+'</div>').join('');
+    show(tag+'<h2>'+c.n+'</h2><div class="sym">'+c.sym+'</div>'+
+      '<div class="tag" style="color:var(--mute)">Testes (2 grátis, depois −5 pts cada)</div><div class="tests">'+
+      c.tests.map((t,k)=>'<button data-t="'+k+'" class="'+(sc.seen[k]?'on':'')+'">'+t[0]+(!sc.seen[k]&&Object.keys(sc.seen).length>=2?' (−5)':'')+'</button>').join('')+'</div>'+
+      '<div class="log">'+(logs||'Escolha seus testes com cuidado.')+'</div>'+
+      '<div class="classroom"><b>Conversem antes de escolher</b><p>Registrem uma hipótese inicial com base no sintoma e nos testes já feitos. Depois, comparem com as alternativas.</p><label class="reason"><span class="tag" style="color:var(--mute)">Nossa hipótese inicial</span><textarea id="hypothesis" placeholder="Qual componente ou conexão suspeitam? Por quê?"></textarea></label>'+
+      (sc.unlocked?'<p class="fb">Hipótese registrada. Agora avaliem qual reparo é sustentado pelas evidências.</p>':'<button class="btn unlock" id="unlock" type="button">Registrar hipótese e ver alternativas</button><div class="err" id="hypErr" role="alert"></div>')+'</div>'+
+      (sc.unlocked?'<div class="tag" style="color:var(--mute)">Qual é o reparo? <span style="color:var(--bad)">Erro: −20 pts</span></div><div class="opts" id="opts">'+
+      oo.map(k=>'<button class="opt" data-o="'+k+'">'+c.opts[k]+'</button>').join('')+'</div>'+
+      '<label class="reason"><span class="tag" style="color:var(--mute)">Como vocês chegaram a essa solução?</span><textarea id="reason" placeholder="Explique o raciocínio e as pistas que confirmam a solução."></textarea></label>':'')+
+      '<div class="hintbox"><button class="btn" id="hint" type="button" '+(sc.hints>=c.hints.length?'disabled':'')+'>'+
+      (sc.hints>=c.hints.length?'Dicas exibidas':sc.hints?'Mais uma dica ('+(c.hints.length-sc.hints)+' restante'+(sc.hints===1?'':'s')+')':'Pedir uma dica')+'</button>'+
+      (sc.hints?'<p>'+c.hints.slice(0,sc.hints).map(esc).join('</p><p>')+'</p>':'')+'</div><div id="fb"></div>'+
+      '<div class="row"><button class="btn" id="x">Fechar</button></div>');
+    $('hypothesis').value=sc.hypothesis;
+    $('hypothesis').oninput=e=>{sc.hypothesis=e.target.value;saveAnswer('hypothesis',sc.hypothesis)};
+    if(sc.unlocked){$('reason').value=sc.reason;$('reason').oninput=e=>{sc.reason=e.target.value;saveAnswer('reason',sc.reason)}}
+    if(!sc.unlocked)$('unlock').onclick=()=>{
+      if(!sc.hypothesis.trim()){$('hypErr').textContent='Registrem uma hipótese antes de ver as alternativas.';$('hypothesis').focus();return}
+      sc.unlocked=true;diag()};
+    $('hint').onclick=()=>{if(sc.hints<c.hints.length){sc.hints++;diag()}};
+    card.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const t=b.dataset.t;if(!sc.seen[t]){if(Object.keys(sc.seen).length>=2)sc.v=Math.max(0,sc.v-5);sc.seen[t]=1;record().tests=Object.keys(sc.seen).map(k=>c.tests[k][0]+': '+c.tests[k][1]);persist()}diag()});
+    card.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{
+      const k=+b.dataset.o;
+      record().repair=c.opts[k];record().repairCorrect=k===c.ok;persist();
+      if(k===c.ok){b.classList.add('good');card.querySelectorAll('[data-o]').forEach(x=>x.disabled=true);
+        $('fb').innerHTML='<div class="fb"><b>Reparo feito.</b> '+c.why+'</div><div class="row"><button class="cta" id="nx">Desafio conceitual →</button></div>';
+        $('nx').onclick=quiz}
+      else{sc.v=Math.max(0,sc.v-20);b.classList.add('bad');b.disabled=true;
+        $('fb').innerHTML='<div class="fb bad">Essa escolha ainda não explica todas as evidências. '+esc(c.hints[0])+' Releiam as pistas antes de tentar outra alternativa. Pontos neste caso: '+sc.v+'.</div>'}});
+    $('x').onclick=closeAll}
+  function quiz(){
+    show(tag+'<h2>Desafio conceitual</h2><div class="sym">'+c.q+'</div><div class="opts">'+
+      qq.map(k=>'<button class="opt" data-q="'+k+'">'+c.qo[k]+'</button>').join('')+'</div><div id="fb"></div>');
+    card.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{
+      const k=+b.dataset.q;
+      record().conceptAnswer=c.qo[k];record().conceptCorrect=k===c.qok;persist();
+      if(k===c.qok){b.classList.add('good');card.querySelectorAll('[data-q]').forEach(x=>x.disabled=true);
+        $('fb').innerHTML='<div class="fb">'+c.qw+'</div><div class="row"><button class="cta" id="reflect">Refletir e concluir →</button></div>';$('reflect').onclick=reflection}
+      else{sc.v=Math.max(0,sc.v-20);b.classList.add('bad');b.disabled=true;
+        $('fb').innerHTML='<div class="fb bad">Quase. '+esc(c.qHint)+' Tente outra alternativa.</div>'}})}
+  function reflection(){
+    show(tag+'<h2>Fechamento do caso</h2><p>Conversem sobre o processo: explicar as evidências ajuda a transformar a resposta em aprendizado.</p>'+
+      '<label class="reason"><span class="tag" style="color:var(--mute)">Qual pista foi mais importante para o diagnóstico?</span><textarea id="important" placeholder="Citem o teste ou sintoma decisivo."></textarea></label>'+
+      '<label class="reason"><span class="tag" style="color:var(--mute)">Que teste fariam primeiro em um computador real?</span><textarea id="firstTest" placeholder="Considerem segurança, custo e poder de diagnóstico."></textarea></label>'+
+      '<div class="row"><button class="cta" id="fin">Concluir caso</button></div>');
+    $('important').value=sc.important;$('important').oninput=e=>{sc.important=e.target.value;saveAnswer('important',sc.important)};
+    $('firstTest').value=sc.firstTest;$('firstTest').oninput=e=>{sc.firstTest=e.target.value;saveAnswer('firstTest',sc.firstTest)};
+    $('fin').onclick=finish}
+  function finish(){
+    record().completed=true;record().score=sc.v;
+    const prev=save.done[i];if(prev===undefined||sc.v>prev)save.done[i]=sc.v;persist();paint();hud();
+    const all=Object.keys(save.done).length===N;
+    if(all){const tot=Object.values(save.done).reduce((a,b)=>a+b,0);
+      show('<div class="tag">Turno encerrado</div><h2>Todas as máquinas voltaram a funcionar</h2><p><b>Dupla: '+esc(save.team)+'</b></p><div class="score">'+tot+' / '+N*150+' pts</div><p>Você diagnosticou '+N+' defeitos de hardware, da memória RAM à fonte de energia.</p><div class="fb">As resoluções serão enviadas ao professor <b>janielgomes9@gmail.com</b>. Se o envio automático não estiver disponível, baixe o CSV e encaminhe-o manualmente.</div><div class="err" id="sendStatus" role="status" aria-live="polite"></div><div class="row"><button class="cta" id="send">Enviar ao professor</button><button class="btn" id="download">Baixar CSV</button><button class="btn" id="rs">Reiniciar turno</button><button class="btn" id="x">Continuar</button></div>');
+      $('send').onclick=sendReport;$('download').onclick=exportReport;$('rs').onclick=reset;$('x').onclick=closeAll}
+    else{show('<div class="tag">Caso concluído</div><h2>PC '+String(i+1).padStart(2,'0')+' funcionando</h2><div class="score">+'+save.done[i]+' pts</div><div class="row"><button class="cta" id="x">Voltar ao laboratório</button></div>');$('x').onclick=closeAll}}
+  diag()}
+
+function teamScreen(){
+  show('<div class="tag">Identificação</div><h2>Qual é o nome da dupla?</h2><p>O nome aparece no placar e na tela final, para o professor identificar o resultado.</p><form id="tf" class="field"><label for="tn" class="tag">Nome da dupla</label><input id="tn" maxlength="40" autocomplete="off" placeholder="Ex.: Ana e Bruno"><div class="err" id="te" role="alert"></div><div class="row"><button class="cta" type="submit">Começar o turno</button></div></form>');
+  const tn=$('tn');setTimeout(()=>tn.focus(),50);
+  $('tf').onsubmit=e=>{e.preventDefault();const v=tn.value.trim().replace(/\s+/g,' ');
+    if(!v){$('te').textContent='Digite o nome da dupla para começar.';tn.focus();return}
+    save.team=v.slice(0,40);persist();hud();
+    if(!Object.keys(save.done).length)help();else closeAll()}}
+function reset(){save={done:{},records:{}};persist();paint();hud();teamScreen()}
+function skillProgress(){
+  const topics=[...new Set(CASES.flatMap(c=>c.topics))];
+  return topics.map(topic=>{
+    const cases=CASES.map((c,i)=>({c,i})).filter(x=>x.c.topics.includes(topic));
+    const completed=cases.filter(x=>save.done[x.i]!==undefined).length;
+    const points=cases.reduce((sum,x)=>sum+(save.done[x.i]||0),0);
+    const max=cases.length*150,pct=max?Math.round(points/max*100):0;
+    return '<div class="skill"><div class="skill-head"><b>'+esc(topic)+'</b><span>'+completed+'/'+cases.length+' casos · '+pct+'%</span></div><div class="meter" role="progressbar" aria-label="'+esc(topic)+'" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100"><i style="width:'+pct+'%"></i></div><small>'+points+' de '+max+' pontos</small></div>'
+  }).join('')
+}
+function reportCsv(){
+  const fields=['Dupla','PC','Caso','Temas','Pontos','Testes realizados','Hipotese inicial','Reparo escolhido','Reparo correto','Justificativa','Pergunta conceitual','Resposta conceitual','Resposta correta','Pista mais importante','Primeiro teste no mundo real'];
+  const quote=value=>'"'+String(value||'').replace(/"/g,'""')+'"';
+  const rows=CASES.map((c,i)=>{
+    const r=save.records[i]||{};
+    return [save.team||'',String(i+1).padStart(2,'0'),c.n,c.topics.join('; '),save.done[i]===undefined?'':save.done[i],
+      (r.tests||[]).join('; '),r.hypothesis,r.repair,r.repairCorrect===undefined?'':r.repairCorrect?'Sim':'Não',
+      r.reason,c.q,r.conceptAnswer,r.conceptCorrect===undefined?'':r.conceptCorrect?'Sim':'Não',
+      r.important,r.firstTest].map(quote).join(',')
+  });
+  return '\ufeff'+[fields.map(quote).join(','),...rows].join('\r\n')
+}
+function exportReport(){
+  const blob=new Blob([reportCsv()],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='relatorio-oficina-hardware.csv';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000)
+}
+async function sendReport(buttonId='send',statusId='sendStatus'){
+  const button=$(buttonId),status=$(statusId);
+  button.disabled=true;status.textContent='Enviando relatório...';
+  try{
+    const response=await fetch('/api/send-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:reportCsv()})});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'Falha ao enviar o relatório.');
+    status.textContent='Relatório enviado para janielgomes9@gmail.com.';
+  }catch(error){
+    console.error('Não foi possível enviar o relatório.',error);
+    status.textContent=(error.message||'Não foi possível enviar o relatório.')+' Você ainda pode baixar o CSV e enviá-lo manualmente.';
+    button.disabled=false
+  }
+}
+$('bList').onclick=()=>{
+  const entries=CASES.map((c,i)=>{
+    const r=save.records[i];
+    if(!r||(!r.hypothesis&&!r.reason&&!r.important&&!r.firstTest))return '';
+    return '<details class="report-entry"><summary>PC '+String(i+1).padStart(2,'0')+' · '+esc(c.n)+'</summary>'+
+      '<p><b>Hipótese:</b> '+esc(r.hypothesis||'—')+'</p><p><b>Justificativa:</b> '+esc(r.reason||'—')+'</p>'+
+      '<p><b>Pista decisiva:</b> '+esc(r.important||'—')+'</p><p><b>Primeiro teste:</b> '+esc(r.firstTest||'—')+'</p></details>'
+  }).join('');
+  show('<div class="tag">Missões da turma</div><h2>Desafios</h2><p>Dupla: <b>'+esc(save.team)+'</b></p>'+
+    '<h3>Progresso por habilidade</h3><div class="skill-list">'+skillProgress()+'</div><div class="list">'+
+    CASES.map((c,i)=>{const d=save.done[i]!==undefined;return '<div class="'+(d?'d':'')+'"><i>'+String(i+1).padStart(2,'0')+'</i><span>'+c.n+'</span><s>'+(d?save.done[i]+' pts':'pendente')+'</s></div>'}).join('')+
+    '</div><h3>Respostas e reflexões</h3>'+(entries||'<p>Nenhuma resposta registrada ainda.</p>')+
+    '<div class="err" id="sendClassStatus" role="status" aria-live="polite"></div><div class="row"><button class="btn" id="export">Exportar respostas (CSV)</button><button class="btn" id="sendClassReport">Enviar relatório ao professor</button><button class="btn" id="rs">Reiniciar turno</button><button class="cta" id="x">Fechar</button></div>');
+    $('export').onclick=exportReport;$('sendClassReport').onclick=()=>sendReport('sendClassReport','sendClassStatus');$('rs').onclick=reset;$('x').onclick=closeAll};
+function help(){show('<div class="tag">Bem-vindo ao seu primeiro turno</div><h2>Um sintoma. Várias causas.</h2><p>Você cuida do laboratório de informática. Cada um dos 12 computadores tem um defeito diferente. Ande até o círculo amarelo, inspecione e use os testes para reunir evidências.</p><p>Antes de ver as alternativas, conversem e registrem uma hipótese. Depois, expliquem a escolha, respondam ao desafio conceitual e façam uma reflexão final sobre as pistas e os testes. Há duas dicas graduais por caso.</p><p>Cada caso vale até 150 pontos. Os dois primeiros testes são grátis e os seguintes custam 5 pontos. Cada erro custa 20. O progresso e as respostas ficam salvos neste navegador. Em <b>Missões</b>, acompanhem habilidades, revisem as respostas e exportem um CSV para o professor.</p><div class="row"><button class="cta" id="x">Começar o turno</button></div>');$('x').onclick=closeAll}
+$('bHelp').onclick=help;
+$('prompt').onclick=interact;
+if(!save.team)teamScreen();else if(!Object.keys(save.done).length)help();
+})();
+</script>
+
+</body>
+</html>
